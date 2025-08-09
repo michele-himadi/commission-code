@@ -1,0 +1,33 @@
+---
+title: "spaghetti-analysis"
+output: html_document
+---
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************                Project Setup                 *************** # 
+# **************************************************************************** #
+
+## package installs
+# install.packages("readxl")
+
+# library
+library(readxl)
+
+```
+
+
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************         Extract and Import Data             **************** #                  
+# **************************************************************************** #
+setwd("C:/Users/miche/Downloads")
+
+
+hep_b <- read_excel("~/Downloads/Hepatitis B Cases - NCH Deidentified.xlsx")
+hep-c <- read_excel("path/to/your/file.xlsx")
+
+
+
+
+
+```
