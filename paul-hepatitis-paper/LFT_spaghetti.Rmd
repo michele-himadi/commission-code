@@ -42,6 +42,7 @@ hep_c <- read_csv("Hep_C.csv")
 # write.csv(hep_c, "C:/Users/miche/Downloads/hep_c_export.csv", row.names = FALSE)
 
 hep_b_clean <- hep_b[, -c(3:6,13:20)]
+hep_c_clean <- hep_c[, -c(3:6,13:20)]
 
 ```
 
@@ -52,15 +53,20 @@ hep_b_clean <- hep_b[, -c(3:6,13:20)]
 
 #LFT - ALT, AST, Bilirubin
 
-hep_b_sag <- hep_b_clean[, c(1:8)]
-hep_b_sag$`Date of HbSAg Titer 1` <- as.Date(hep_b_sag$`Date of HbSAg Titer 1`, format = "%Y-%m-%d")
-hep_b_sag$`Date of HbSAg Titer 2` <- as.Date(hep_b_sag$`Date of HbSAg Titer 2`, format = "%Y-%m-%d")
-hep_b_sag$`Date of HbSAg Titer 3` <- as.Date(hep_b_sag$`Date of HbSAg Titer 3`, format = "%Y-%m-%d")
-hep_b_sag$date2 <- as.numeric(hep_b_sag[[6]] - hep_b_sag[[4]])
-hep_b_sag$date3 <- as.numeric(hep_b_sag[[8]] - hep_b_sag[[4]])
+hep_b_lft <- hep_b_clean[, c(9:12, 20:23, 31:34, 42:45, 56:59)]
+hep_b_lft$`Date of LFTs 1` <- as.Date(hep_b_lft$`Date of LFTs 1`, format = "%Y-%m-%d")
+hep_b_lft$`Date of LFTs 2` <- as.Date(hep_b_lft$`Date of LFTs 2`, format = "%Y-%m-%d")
+hep_b_lft$`Date of LFTs 3` <- as.Date(hep_b_lft$`Date of LFTs 3`, format = "%Y-%m-%d")
+hep_b_lft$`Date of LFTs 4` <- as.Date(hep_b_lft$`Date of LFTs 4`, format = "%Y-%m-%d")
+hep_b_lft$`Date of LFTs 5` <- as.Date(hep_b_lft$`Date of LFTs 5`, format = "%Y-%m-%d")
+
+hep_b_lft$date2 <- as.numeric(hep_b_lft[[8]] - hep_b_lft[[4]])
+hep_b_lft$date3 <- as.numeric(hep_b_lft[[12]] - hep_b_lft[[4]])
+hep_b_lft$date4 <- as.numeric(hep_b_lft[[16]] - hep_b_lft[[4]])
+hep_b_lft$date5 <- as.numeric(hep_b_lft[[20]] - hep_b_lft[[4]])
 
 #age grouping
-hep_b_sag <- hep_b_sag %>%
+hep_b_lft <- hep_b_lft %>%
   mutate(
     age_group = case_when(
       `Age in Years` >= 30 & `Age in Years` <= 50 ~ "30–50",
@@ -70,20 +76,20 @@ hep_b_sag <- hep_b_sag %>%
   )
 
 #making data frame
-n <- nrow(hep_b_sag)
+n <- nrow(hep_b_lft)
 plot_data <- data.frame(
   id = rep(1:n, each = 3),
   days = as.vector(t(cbind(
     rep(0, n),         # Day 0 for titer 1
-    hep_b_sag$date2,   # Day for titer 2
-    hep_b_sag$date3    # Day for titer 3
+    hep_b_lft$date2,   # Day for titer 2
+    hep_b_lft$date3    # Day for titer 3
   ))),
   titer = as.vector(t(cbind(
-    hep_b_sag$`HbSAg Titer 1`,
-    hep_b_sag$`HbSAg Titer 2`,
-    hep_b_sag$`HbSAg Titer 3`
+    hep_b_lft$`Hblft Titer 1`,
+    hep_b_lft$`Hblft Titer 2`,
+    hep_b_lft$`Hblft Titer 3`
   ))),
-  age_group = rep(hep_b_sag$age_group, each = 3)
+  age_group = rep(hep_b_lft$age_group, each = 3)
 )
 
 
