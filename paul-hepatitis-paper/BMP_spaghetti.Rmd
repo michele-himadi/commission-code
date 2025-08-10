@@ -47,10 +47,10 @@ hep_b_clean <- hep_b[, -c(3:6,13:20)]
 
 ```{r, include=FALSE}
 # **************************************************************************** #
-# ***************         LFT Format and Spaghetti           **************** #                  
+# ***************          BMP Format and Spaghetti           **************** #                  
 # **************************************************************************** #
 
-#LFT - ALT, AST, Bilirubin
+#BMP - Creatinine, Sodium
 
 hep_b_sag <- hep_b_clean[, c(1:8)]
 hep_b_sag$`Date of HbSAg Titer 1` <- as.Date(hep_b_sag$`Date of HbSAg Titer 1`, format = "%Y-%m-%d")
@@ -85,7 +85,6 @@ plot_data <- data.frame(
   ))),
   age_group = rep(hep_b_sag$age_group, each = 3)
 )
-
 
 
 ```
