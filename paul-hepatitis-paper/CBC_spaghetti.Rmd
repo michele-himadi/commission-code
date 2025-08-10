@@ -24,43 +24,48 @@ library(grid)
 
 ```
 
-
 ```{r, include=FALSE}
 # **************************************************************************** #
 # ***************         Extract and Import Data             **************** #                  
 # **************************************************************************** #
 
-# the documents were downloaded from email, so set wd to your personal Downloads folder
-# ensure you run the chunk as a whole
-setwd("C:/Users/miche/Downloads")
-
 #Hep B data can be read fine as an excel, Hep C data needed to be validated first: uploaded into Google Drive, then exported as .csv
+# hep_b file had some issues with creatinine and sodium, pt 11 creatinine 4 value was 133 and sodium was 5.2, an outlier, and were switched
+# hep_c file had issues with BMP test date, pt 107 had "2002-12-05", changed to 2022. pt 120's BMP 5 was also taken on an earlier date than their BMP 2, so it was appropriately adjusted.
 
-hep_b <- read_excel("Hepatitis B Cases - NCH Deidentified.xlsx")
-hep_c <- read_csv("Hep_C.csv")
-
-# write.csv(hep_c, "C:/Users/miche/Downloads/hep_c_export.csv", row.names = FALSE)
+hep_b <- readxl::read_excel(
+  file.path(getwd(), "datasets", "Hepatitis B Cases - NCH Deidentified.xlsx")
+)
+hep_c <- readr::read_csv(
+  file.path(getwd(), "datasets", "Hep_C.csv")
+)
 
 hep_b_clean <- hep_b[, -c(3:6,13:20)]
+hep_c_clean <- hep_c[, -c(3:6,13:20)]
 
 ```
 
 ```{r, include=FALSE}
 # **************************************************************************** #
-# ***************          CBC Format and Spaghetti           **************** #                  
+# ***************         CBC Format and Spaghetti           **************** #                  
 # **************************************************************************** #
 
 #CBC - Platelet
 
-hep_b_sag <- hep_b_clean[, c(1:8)]
-hep_b_sag$`Date of HbSAg Titer 1` <- as.Date(hep_b_sag$`Date of HbSAg Titer 1`, format = "%Y-%m-%d")
-hep_b_sag$`Date of HbSAg Titer 2` <- as.Date(hep_b_sag$`Date of HbSAg Titer 2`, format = "%Y-%m-%d")
-hep_b_sag$`Date of HbSAg Titer 3` <- as.Date(hep_b_sag$`Date of HbSAg Titer 3`, format = "%Y-%m-%d")
-hep_b_sag$date2 <- as.numeric(hep_b_sag[[6]] - hep_b_sag[[4]])
-hep_b_sag$date3 <- as.numeric(hep_b_sag[[8]] - hep_b_sag[[4]])
+#CBC formatting
+hep_b_cbc <- hep_b_clean[, c(1,2,16,17,27,28,38,39,49,50,60,61)]
+hep_b_cbc$`Date of CBC 1` <- as.Date(hep_b_cbc$`Date of CBC 1`, format = "%Y-%m-%d")
+hep_b_cbc$`Date of CBC 2` <- as.Date(hep_b_cbc$`Date of CBC 2`, format = "%Y-%m-%d")
+hep_b_cbc$`Date of CBC 3` <- as.Date(hep_b_cbc$`Date of CBC 3`, format = "%Y-%m-%d")
+hep_b_cbc$`Date of CBC 4` <- as.Date(hep_b_cbc$`Date of CBC 3`, format = "%Y-%m-%d")
+hep_b_cbc$`Date of CBC 5` <- as.Date(hep_b_cbc$`Date of CBC 3`, format = "%Y-%m-%d")
+hep_b_cbc$date2 <- as.numeric(hep_b_cbc[[6]] - hep_b_cbc[[4]])
+hep_b_cbc$date3 <- as.numeric(hep_b_cbc[[8]] - hep_b_cbc[[4]])
+hep_b_cbc$date4 <- as.numeric(hep_b_cbc[[10]] - hep_b_cbc[[4]])
+hep_b_cbc$date5 <- as.numeric(hep_b_cbc[[12]] - hep_b_cbc[[4]])
 
 #age grouping
-hep_b_sag <- hep_b_sag %>%
+hep_b_cbc <- hep_b_cbc %>%
   mutate(
     age_group = case_when(
       `Age in Years` >= 30 & `Age in Years` <= 50 ~ "30–50",
@@ -70,20 +75,102 @@ hep_b_sag <- hep_b_sag %>%
   )
 
 #making data frame
-n <- nrow(hep_b_sag)
+n <- nrow(hep_b_cbc)
 plot_data <- data.frame(
-  id = rep(1:n, each = 3),
+  id = rep(1:n, each = 5),
   days = as.vector(t(cbind(
-    rep(0, n),         # Day 0 for titer 1
-    hep_b_sag$date2,   # Day for titer 2
-    hep_b_sag$date3    # Day for titer 3
+    rep(0, n),         # Day 0 for cbc 1
+    hep_b_cbc$date2,   # Day for cbc 2
+    hep_b_cbc$date3,    # Day for cbc 3
+    hep_b_cbc$date4,
+    hep_b_cbc$date5
   ))),
-  titer = as.vector(t(cbind(
-    hep_b_sag$`HbSAg Titer 1`,
-    hep_b_sag$`HbSAg Titer 2`,
-    hep_b_sag$`HbSAg Titer 3`
+  platelet = as.vector(t(cbind(
+    hep_b_cbc$`Platelet 1`,
+    hep_b_cbc$`Platelet 2`,
+    hep_b_cbc$`Platelet 3`,
+    hep_b_cbc$`Platelet 4`,
+    hep_b_cbc$`Platelet 5`
   ))),
-  age_group = rep(hep_b_sag$age_group, each = 3)
+  age_group = rep(hep_b_cbc$age_group, each = 5)
 )
+
+
+#clean the Platelet column, clean white space, ensure age_group is factor
+plot_data$platelet <- trimws(plot_data$platelet)
+plot_data$platelet <- gsub("[\u00A0]", "", plot_data$platelet)
+plot_data$platelet <- gsub(",", "", plot_data$platelet)
+plot_data$platelet <- as.numeric(plot_data$platelet)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = platelet, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(aes(group = age_group, color = factor(age_group)), 
+              method = "gam", se = FALSE, size = 1.2) +
+  scale_y_continuous(labels = label_number()) +
+  labs(
+    x = "Time from Initial Encounter (Days)",
+    y = "Platelets (10^3/µL)",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+plot_data_clean <- subset(plot_data, !is.na(platelet) & platelet > 0)
+gam_model1 <- gam(log10(platelet) ~ s(days) + age_group, data = plot_data_clean)
+
+gam_model2 <- gam(log10(platelet) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data_clean)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$platelet, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("figure_outputs/hbcbc_platelet_spaghetti.png", plot = plot_with_text, dpi = 300)
 
 ```

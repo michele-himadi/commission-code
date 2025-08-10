@@ -31,7 +31,8 @@ library(grid)
 # **************************************************************************** #
 
 #Hep B data can be read fine as an excel, Hep C data needed to be validated first: uploaded into Google Drive, then exported as .csv
-# hep_b file had some issues with creatinine, pt 11 creatinine 4 value was 133 and sodium was 5.2, an outlier, and was deleted
+# hep_b file had some issues with creatinine and sodium, pt 11 creatinine 4 value was 133 and sodium was 5.2, an outlier, and were switched
+# hep_c file had issues with BMP test date, pt 107 had "2002-12-05", changed to 2022. pt 120's BMP 5 was also taken on an earlier date than their BMP 2, so it was appropriately adjusted.
 
 hep_b <- readxl::read_excel(
   file.path(getwd(), "datasets", "Hepatitis B Cases - NCH Deidentified.xlsx")
@@ -82,9 +83,9 @@ n <- nrow(hep_b_bmp)
 plot_data <- data.frame(
   id = rep(1:n, each = 5),
   days = as.vector(t(cbind(
-    rep(0, n),         # Day 0 for titer 1
-    hep_b_bmp$date2,   # Day for titer 2
-    hep_b_bmp$date3,    # Day for titer 3
+    rep(0, n),         # Day 0 for bmp 1
+    hep_b_bmp$date2,   # Day for bmp 2
+    hep_b_bmp$date3,  
     hep_b_bmp$date4,
     hep_b_bmp$date5
   ))),
@@ -183,9 +184,9 @@ n <- nrow(hep_b_bmp)
 plot_data <- data.frame(
   id = rep(1:n, each = 5),
   days = as.vector(t(cbind(
-    rep(0, n),         # Day 0 for titer 1
-    hep_b_bmp$date2,   # Day for titer 2
-    hep_b_bmp$date3,    # Day for titer 3
+    rep(0, n),         # Day 0 for bmp 1
+    hep_b_bmp$date2,   # Day for bmp 2
+    hep_b_bmp$date3,
     hep_b_bmp$date4,
     hep_b_bmp$date5
   ))),
@@ -216,7 +217,241 @@ p <- ggplot(plot_data, aes(x = days, y = sodium, group = id, color = factor(age_
   geom_line(na.rm = TRUE, alpha = 0.5) +
   geom_point(na.rm = TRUE) +
   geom_smooth(aes(group = age_group, color = factor(age_group)), 
-              method = "loess", se = FALSE, size = 1.2) +
+              method = "gam", se = FALSE, size = 1.2) +
+  scale_y_continuous(labels = label_number()) +
+  labs(
+    x = "Time from Initial Encounter (Days)",
+    y = "Sodium (mg/dL)",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+plot_data_clean <- subset(plot_data, !is.na(sodium) & sodium > 0)
+gam_model1 <- gam(log10(sodium) ~ s(days) + age_group, data = plot_data_clean)
+
+gam_model2 <- gam(log10(sodium) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data_clean)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$sodium, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("figure_outputs/hbbmp_NA_spaghetti.png", plot = plot_with_text, dpi = 300)
+
+```
+
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************       HepC BMP Format and Spaghetti         **************** #                  
+# **************************************************************************** #
+
+#BMP - Creatinine, Sodium
+
+
+#BMP formatting
+hep_c_bmp <- hep_c_clean[, c(1,2,13:15, 24:26, 35:37, 46:48, 57:59)]
+hep_c_bmp$`Date of BMP 1` <- as.Date(hep_c_bmp$`Date of BMP 1`, format = "%m/%d/%Y")
+hep_c_bmp$`Date of BMP 2` <- as.Date(hep_c_bmp$`Date of BMP 2`, format = "%m/%d/%Y")
+hep_c_bmp$`Date of BMP 3` <- as.Date(hep_c_bmp$`Date of BMP 3`, format = "%m/%d/%Y")
+hep_c_bmp$`Date of BMP 4` <- as.Date(hep_c_bmp$`Date of BMP 4`, format = "%m/%d/%Y")
+hep_c_bmp$`Date of BMP 5` <- as.Date(hep_c_bmp$`Date of BMP 5`, format = "%m/%d/%Y")
+hep_c_bmp$date2 <- as.numeric(hep_c_bmp[[8]] - hep_c_bmp[[5]])
+hep_c_bmp$date3 <- as.numeric(hep_c_bmp[[11]] - hep_c_bmp[[5]])
+hep_c_bmp$date4 <- as.numeric(hep_c_bmp[[14]] - hep_c_bmp[[5]])
+hep_c_bmp$date5 <- as.numeric(hep_c_bmp[[17]] - hep_c_bmp[[5]])
+
+#age grouping
+hep_c_bmp <- hep_c_bmp %>%
+  mutate(
+    age_group = case_when(
+      `Age in Years` >= 30 & `Age in Years` <= 50 ~ "30–50",
+      `Age in Years` >= 70 & `Age in Years` <= 90 ~ "70–90",
+      TRUE ~ NA_character_
+    )
+  )
+
+########################################## Creatinine ##########################################
+
+#making data frame
+n <- nrow(hep_c_bmp)
+plot_data <- data.frame(
+  id = rep(1:n, each = 5),
+  days = as.vector(t(cbind(
+    rep(0, n),         # Day 0 for titer 1
+    hep_c_bmp$date2,   # Day for titer 2
+    hep_c_bmp$date3,    # Day for titer 3
+    hep_c_bmp$date4,
+    hep_c_bmp$date5
+  ))),
+  creatinine = as.vector(t(cbind(
+    hep_c_bmp$`Creatinine 1`,
+    hep_c_bmp$`Creatinine 2`,
+    hep_c_bmp$`Creatinine 3`,
+    hep_c_bmp$`Creatinine 4`,
+    hep_c_bmp$`Creatinine 5`
+  ))),
+  age_group = rep(hep_c_bmp$age_group, each = 5)
+)
+
+
+#clean the creatinine column, clean white space, ensure age_group is factor
+plot_data$creatinine <- trimws(plot_data$creatinine)
+plot_data$creatinine <- gsub("[\u00A0]", "", plot_data$creatinine)
+plot_data$creatinine <- gsub(",", "", plot_data$creatinine)
+plot_data$creatinine <- as.numeric(plot_data$creatinine)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = creatinine, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(aes(group = age_group, color = factor(age_group)), 
+              method = "gam", se = FALSE, size = 1.2) +
+  scale_y_continuous(labels = label_number()) +
+  labs(
+    x = "Time from Initial Encounter (Days)",
+    y = "Creatinine (mg/dL)",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+plot_data_clean <- subset(plot_data, !is.na(creatinine) & creatinine > 0)
+gam_model1 <- gam(log10(creatinine) ~ s(days) + age_group, data = plot_data_clean)
+
+gam_model2 <- gam(log10(creatinine) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data_clean)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$creatinine, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("figure_outputs/hbbmp_creat_spaghetti.png", plot = plot_with_text, dpi = 300)
+
+########################################## Sodium ##########################################
+
+#making data frame
+n <- nrow(hep_c_bmp)
+plot_data <- data.frame(
+  id = rep(1:n, each = 5),
+  days = as.vector(t(cbind(
+    rep(0, n),         # Day 0 for titer 1
+    hep_c_bmp$date2,   # Day for titer 2
+    hep_c_bmp$date3,    # Day for titer 3
+    hep_c_bmp$date4,
+    hep_c_bmp$date5
+  ))),
+  sodium = as.vector(t(cbind(
+    hep_c_bmp$`Sodium 1`,
+    hep_c_bmp$`Sodium 2`,
+    hep_c_bmp$`Sodium 3`,
+    hep_c_bmp$`Sodium 4`,
+    hep_c_bmp$`Sodium 5`
+  ))),
+  age_group = rep(hep_c_bmp$age_group, each = 5)
+)
+
+
+#clean the Sodium column, clean white space, ensure age_group is factor
+plot_data$sodium <- trimws(plot_data$sodium)
+plot_data$sodium <- gsub("[\u00A0]", "", plot_data$sodium)
+plot_data$sodium <- gsub(",", "", plot_data$sodium)
+plot_data$sodium <- as.numeric(plot_data$sodium)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = sodium, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(aes(group = age_group, color = factor(age_group)), 
+              method = "gam", se = FALSE, size = 1.2) +
   scale_y_continuous(labels = label_number()) +
   labs(
     x = "Time from Initial Encounter (Days)",

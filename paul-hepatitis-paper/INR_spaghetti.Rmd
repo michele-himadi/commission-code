@@ -30,37 +30,41 @@ library(grid)
 # ***************         Extract and Import Data             **************** #                  
 # **************************************************************************** #
 
-# the documents were downloaded from email, so set wd to your personal Downloads folder
-# ensure you run the chunk as a whole
-setwd("C:/Users/miche/Downloads")
-
 #Hep B data can be read fine as an excel, Hep C data needed to be validated first: uploaded into Google Drive, then exported as .csv
 
-hep_b <- read_excel("Hepatitis B Cases - NCH Deidentified.xlsx")
-hep_c <- read_csv("Hep_C.csv")
-
-# write.csv(hep_c, "C:/Users/miche/Downloads/hep_c_export.csv", row.names = FALSE)
+hep_b <- readxl::read_excel(
+  file.path(getwd(), "datasets", "Hepatitis B Cases - NCH Deidentified.xlsx")
+)
+hep_c <- readr::read_csv(
+  file.path(getwd(), "datasets", "Hep_C.csv")
+)
 
 hep_b_clean <- hep_b[, -c(3:6,13:20)]
+hep_c_clean <- hep_c[, -c(3:6,13:20)]
 
 ```
 
 ```{r, include=FALSE}
 # **************************************************************************** #
-# ***************          INR Format and Spaghetti           **************** #                  
+# ***************         INR Format and Spaghetti           **************** #                  
 # **************************************************************************** #
 
 #INR - INR
 
-hep_b_sag <- hep_b_clean[, c(1:8)]
-hep_b_sag$`Date of HbSAg Titer 1` <- as.Date(hep_b_sag$`Date of HbSAg Titer 1`, format = "%Y-%m-%d")
-hep_b_sag$`Date of HbSAg Titer 2` <- as.Date(hep_b_sag$`Date of HbSAg Titer 2`, format = "%Y-%m-%d")
-hep_b_sag$`Date of HbSAg Titer 3` <- as.Date(hep_b_sag$`Date of HbSAg Titer 3`, format = "%Y-%m-%d")
-hep_b_sag$date2 <- as.numeric(hep_b_sag[[6]] - hep_b_sag[[4]])
-hep_b_sag$date3 <- as.numeric(hep_b_sag[[8]] - hep_b_sag[[4]])
+#INR formatting
+hep_b_inr <- hep_b_clean[, c(1,2,18,19,29,30,40,41,51,52,62,63)]
+hep_b_inr$`Date INR 1` <- as.Date(hep_b_inr$`Date INR 1`, format = "%Y-%m-%d")
+hep_b_inr$`Date INR 2` <- as.Date(hep_b_inr$`Date INR 2`, format = "%Y-%m-%d")
+hep_b_inr$`Date INR 3` <- as.Date(hep_b_inr$`Date INR 3`, format = "%Y-%m-%d")
+hep_b_inr$`Date INR 4` <- as.Date(hep_b_inr$`Date INR 3`, format = "%Y-%m-%d")
+hep_b_inr$`Date INR 5` <- as.Date(hep_b_inr$`Date INR 3`, format = "%Y-%m-%d")
+hep_b_inr$date2 <- as.numeric(hep_b_inr[[6]] - hep_b_inr[[4]])
+hep_b_inr$date3 <- as.numeric(hep_b_inr[[8]] - hep_b_inr[[4]])
+hep_b_inr$date4 <- as.numeric(hep_b_inr[[10]] - hep_b_inr[[4]])
+hep_b_inr$date5 <- as.numeric(hep_b_inr[[12]] - hep_b_inr[[4]])
 
 #age grouping
-hep_b_sag <- hep_b_sag %>%
+hep_b_inr <- hep_b_inr %>%
   mutate(
     age_group = case_when(
       `Age in Years` >= 30 & `Age in Years` <= 50 ~ "30–50",
@@ -69,22 +73,111 @@ hep_b_sag <- hep_b_sag %>%
     )
   )
 
+
 #making data frame
-n <- nrow(hep_b_sag)
+n <- nrow(hep_b_inr)
 plot_data <- data.frame(
-  id = rep(1:n, each = 3),
+  id = rep(1:n, each = 5),
   days = as.vector(t(cbind(
-    rep(0, n),         # Day 0 for titer 1
-    hep_b_sag$date2,   # Day for titer 2
-    hep_b_sag$date3    # Day for titer 3
+    rep(0, n),         # Day 0 for inr 1
+    hep_b_inr$date2,   # Day for inr 2
+    hep_b_inr$date3,    # Day for inr 3
+    hep_b_inr$date4,
+    hep_b_inr$date5
   ))),
-  titer = as.vector(t(cbind(
-    hep_b_sag$`HbSAg Titer 1`,
-    hep_b_sag$`HbSAg Titer 2`,
-    hep_b_sag$`HbSAg Titer 3`
+  INR = as.vector(t(cbind(
+    hep_b_inr$`INR 1`,
+    hep_b_inr$`INR 2`,
+    hep_b_inr$`INR 3`,
+    hep_b_inr$`INR 4`,
+    hep_b_inr$`INR 5`
   ))),
-  age_group = rep(hep_b_sag$age_group, each = 3)
+  age_group = rep(hep_b_inr$age_group, each = 5)
 )
+
+
+#clean the INR column, clean white space, ensure age_group is factor
+plot_data$INR <- trimws(plot_data$INR)
+plot_data$INR <- gsub("[\u00A0]", "", plot_data$INR)
+plot_data$INR <- gsub(",", "", plot_data$INR)
+plot_data$INR <- as.numeric(plot_data$INR)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = INR, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(
+    aes(group = age_group, color = factor(age_group)),
+    method = "gam",
+    formula = y ~ s(x, k = 7),  # Reduce knots here
+    se = FALSE,
+    size = 1.2
+  ) +
+  scale_y_log10(labels = label_number()) +
+  labs(
+    x = "Time from Initial Encounter (Days)",
+    y = "INR Log Scale",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+plot_data_clean <- subset(plot_data, !is.na(INR) & INR > 0)
+gam_model1 <- gam(log10(INR) ~ s(days) + age_group, data = plot_data_clean)
+
+gam_model2 <- gam(log10(INR) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data_clean)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$INR, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("figure_outputs/hbinr_INR_spaghetti.png", plot = plot_with_text, dpi = 300)
+
 
 
 ```
