@@ -121,7 +121,7 @@ p <- ggplot(plot_data, aes(x = days, y = INR, group = id, color = factor(age_gro
   scale_y_log10(labels = label_number()) +
   labs(
     x = "Time from Initial Encounter (Days)",
-    y = "INR Log Scale",
+    y = "INR",
     color = "Age Group"
   ) +
   theme_minimal(base_size = 14) +  # increase base font size

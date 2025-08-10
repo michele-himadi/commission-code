@@ -221,8 +221,9 @@ p <- ggplot(plot_data, aes(x = days, y = ALT, group = id, color = factor(age_gro
   geom_smooth(aes(group = age_group, color = factor(age_group)), 
               method = "gam", se = FALSE, size = 1.2) +
   scale_y_log10(labels = label_number()) +
+  scale_x_log10(labels = function(x) format(x, scientific = FALSE)) +
   labs(
-    x = "Time from Initial Encounter (Days)",
+    x = "Log Scale of Time from Initial Encounter (Days)",
     y = "ALT Log Scale (IU/L)",
     color = "Age Group"
   ) +
@@ -326,7 +327,7 @@ p <- ggplot(plot_data, aes(x = days, y = tbil, group = id, color = factor(age_gr
   scale_y_log10(labels = label_number()) +
   scale_x_log10(labels = function(x) format(x, scientific = FALSE)) + 
   labs(
-    x = "Time from Initial Encounter (Days)",
+    x = "Log Scale of Time from Initial Encounter (Days)",
     y = "Total Bilirubin Log Scale (mg/dL)",
     color = "Age Group"
   ) +
