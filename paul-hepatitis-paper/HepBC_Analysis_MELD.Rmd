@@ -1,0 +1,291 @@
+---
+title: "spaghetti-analysis"
+output: html_document
+---
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************                Project Setup                 *************** # 
+# **************************************************************************** #
+
+## package installs
+# install.packages("readxl")
+# install.packages("readr")
+install.packages("dplyr")
+
+# library
+library(readxl)
+library(readr)
+library(dplyr)
+library(scales)
+library(ggplot2)
+library(mgcv)
+library(cowplot)
+library(grid)
+
+```
+
+
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************         Extract and Import Data             **************** #                  
+# **************************************************************************** #
+
+# the documents were downloaded from email, so set wd to your personal Downloads folder
+# ensure you run the chunk as a whole
+setwd("C:/Users/miche/Downloads")
+
+#Hep B data can be read fine as an excel, Hep C data needed to be validated first: uploaded into Google Drive, then exported as .csv
+
+hep_b <- read_excel("Hepatitis B Cases - NCH Deidentified.xlsx")
+hep_c <- read_csv("Hep_C.csv")
+
+# write.csv(hep_c, "C:/Users/miche/Downloads/hep_c_export.csv", row.names = FALSE)
+
+
+
+```
+
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************          MELD Score Calculations             **************** #                  
+# **************************************************************************** #
+
+hep_b_clean <- hep_b[, -c(3:6,13:20)]
+
+# MELD 1
+hep_b_clean$MELD_NA_1 <- NA
+for(i in seq_len(nrow(hep_b_clean))) {
+  val_13 <- hep_b_clean[i, 13]
+  val_11 <- hep_b_clean[i, 11]
+  val_18 <- hep_b_clean[i, 18]
+  # Replace blank or NA in val_18 with 1.0
+  if (is.na(val_18) || val_18 == "") {
+    val_18 <- 1.0
+  }
+  val_14 <- hep_b_clean[i, 14]
+  val_13_clamped <- max(val_13, 1.0)
+  val_11_clamped <- max(val_11, 1.0)
+  MELD_score_1 <- ((0.957 * log(val_13_clamped)) + (0.378 * log(val_11_clamped)) + (1.12 * log(val_18) + 0.643)) * 10
+  val_14_clamped <- min(max(val_14, 125), 137)
+  MELD_NA_1 <- MELD_score_1 + 1.32 * (137 - val_14_clamped) - (0.033 * MELD_score_1 * (137 - val_14_clamped))
+  hep_b_clean$MELD_NA_1[i] <- MELD_NA_1
+}
+
+
+
+# MELD 2
+val_24 <- hep_b_clean[[1, 24]]
+val_22 <- hep_b_clean[[1, 22]]
+val_24_clamped <- pmax(val_24, 1.0)
+val_22_clamped <- pmax(val_22, 1.0)
+MELD_score_2 <- ((0.957*log(val_24_clamped)) + (0.378*log(val_22_clamped)) + (1.12*log(hep_b_clean[1,18]) + 0.643)) * 10
+val_25 <- hep_b_clean[[1,25]]
+val_25_clamped <- pmin(pmax(val_25, 125), 137)
+MELD_NA_2 <- MELD_score_2 + 1.32 * (137-val_25_clamped) - (0.033 * MELD_score_2 * (137-val_25_clamped))
+
+
+val_35 <- hep_b_clean[[1, 35]]
+val_33 <- hep_b_clean[[1, 33]]
+val_35_clamped <- pmax(val_35, 1.0)
+val_33_clamped <- pmax(val_33, 1.0)
+MELD_score_3 <- ((0.957*log(val_35_clamped)) + (0.378*log(val_33_clamped)) + (1.12*log(hep_b_clean[1,40]) + 0.643)) * 10
+val_36 <- hep_b_clean[[1,36]]
+val_36_clamped <- pmin(pmax(val_36, 125), 137)
+MELD_NA_3 <- MELD_score_3 + 1.32 * (137-val_36_clamped) - (0.033 * MELD_score_3 * (137-val_36_clamped))
+
+```
+
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************         HbSAG Format and Spaghetti           **************** #                  
+# **************************************************************************** #
+
+#HbSAg
+hep_b_sag <- hep_b_clean[, c(1:8)]
+hep_b_sag$`Date of HbSAg Titer 1` <- as.Date(hep_b_sag$`Date of HbSAg Titer 1`, format = "%Y-%m-%d")
+hep_b_sag$`Date of HbSAg Titer 2` <- as.Date(hep_b_sag$`Date of HbSAg Titer 2`, format = "%Y-%m-%d")
+hep_b_sag$`Date of HbSAg Titer 3` <- as.Date(hep_b_sag$`Date of HbSAg Titer 3`, format = "%Y-%m-%d")
+hep_b_sag$date2 <- as.numeric(hep_b_sag[[6]] - hep_b_sag[[4]])
+hep_b_sag$date3 <- as.numeric(hep_b_sag[[8]] - hep_b_sag[[4]])
+
+#age grouping
+hep_b_sag <- hep_b_sag %>%
+  mutate(
+    age_group = case_when(
+      `Age in Years` >= 30 & `Age in Years` <= 50 ~ "30–50",
+      `Age in Years` >= 70 & `Age in Years` <= 90 ~ "70–90",
+      TRUE ~ NA_character_
+    )
+  )
+
+#making data frame
+n <- nrow(hep_b_sag)
+plot_data <- data.frame(
+  id = rep(1:n, each = 3),
+  days = as.vector(t(cbind(
+    rep(0, n),         # Day 0 for titer 1
+    hep_b_sag$date2,   # Day for titer 2
+    hep_b_sag$date3    # Day for titer 3
+  ))),
+  titer = as.vector(t(cbind(
+    hep_b_sag$`HbSAg Titer 1`,
+    hep_b_sag$`HbSAg Titer 2`,
+    hep_b_sag$`HbSAg Titer 3`
+  ))),
+  age_group = rep(hep_b_sag$age_group, each = 3)
+)
+
+
+#clean the titer column, clean white space, ensure age_group is factor
+plot_data$titer <- trimws(plot_data$titer)
+plot_data$titer <- gsub("[\u00A0]", "", plot_data$titer)
+plot_data$titer <- gsub(",", "", plot_data$titer)
+plot_data$titer <- as.numeric(plot_data$titer)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = titer, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(aes(group = age_group, color = factor(age_group)), 
+              method = "loess", se = FALSE, size = 1.2) +
+  scale_y_log10(labels = label_number()) +
+  labs(
+    x = "Time from Initial Encounter (Days)",
+    y = "HbSAg Titer Log Scale (IU/mL)",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+gam_model1 <- gam(log10(titer) ~ s(days) + age_group, data = plot_data)
+
+gam_model2 <- gam(log10(titer) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$titer, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("hbsag_spaghetti.png", plot = plot_with_text, dpi = 300)
+```
+
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************         LFT Format and Spaghetti           **************** #                  
+# **************************************************************************** #
+
+#LFT - ALT, AST, Bilirubin
+
+hep_b_sag <- hep_b_clean[, c(1:8)]
+hep_b_sag$`Date of HbSAg Titer 1` <- as.Date(hep_b_sag$`Date of HbSAg Titer 1`, format = "%Y-%m-%d")
+hep_b_sag$`Date of HbSAg Titer 2` <- as.Date(hep_b_sag$`Date of HbSAg Titer 2`, format = "%Y-%m-%d")
+hep_b_sag$`Date of HbSAg Titer 3` <- as.Date(hep_b_sag$`Date of HbSAg Titer 3`, format = "%Y-%m-%d")
+hep_b_sag$date2 <- as.numeric(hep_b_sag[[6]] - hep_b_sag[[4]])
+hep_b_sag$date3 <- as.numeric(hep_b_sag[[8]] - hep_b_sag[[4]])
+
+#age grouping
+hep_b_sag <- hep_b_sag %>%
+  mutate(
+    age_group = case_when(
+      `Age in Years` >= 30 & `Age in Years` <= 50 ~ "30–50",
+      `Age in Years` >= 70 & `Age in Years` <= 90 ~ "70–90",
+      TRUE ~ NA_character_
+    )
+  )
+
+#making data frame
+n <- nrow(hep_b_sag)
+plot_data <- data.frame(
+  id = rep(1:n, each = 3),
+  days = as.vector(t(cbind(
+    rep(0, n),         # Day 0 for titer 1
+    hep_b_sag$date2,   # Day for titer 2
+    hep_b_sag$date3    # Day for titer 3
+  ))),
+  titer = as.vector(t(cbind(
+    hep_b_sag$`HbSAg Titer 1`,
+    hep_b_sag$`HbSAg Titer 2`,
+    hep_b_sag$`HbSAg Titer 3`
+  ))),
+  age_group = rep(hep_b_sag$age_group, each = 3)
+)
+
+
+
+```
+
+
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************          BMP Format and Spaghetti           **************** #                  
+# **************************************************************************** #
+
+#BMP - Creatinine, Sodium
+
+
+```
+
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************          CBC Format and Spaghetti           **************** #                  
+# **************************************************************************** #
+
+#CBC - Platelet
+
+
+```
+
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************          INR Format and Spaghetti           **************** #                  
+# **************************************************************************** #
+
+#INR - INR
+
+
+
+```
