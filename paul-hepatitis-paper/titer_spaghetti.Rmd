@@ -10,7 +10,7 @@ output: html_document
 ## package installs
 # install.packages("readxl")
 # install.packages("readr")
-install.packages("dplyr")
+# install.packages("dplyr")
 
 # library
 library(readxl)
@@ -30,17 +30,15 @@ library(grid)
 # ***************         Extract and Import Data             **************** #                  
 # **************************************************************************** #
 
-# the documents were downloaded from email, so set wd to your personal Downloads folder
-# ensure you run the chunk as a whole
-setwd("C:/Users/miche/Downloads")
-
 #Hep B data can be read fine as an excel, Hep C data needed to be validated first: uploaded into Google Drive, then exported as .csv
 # hep_c file had pt 76 and 107 have some issues - we switched titer 1 and 2 for pt 76 and change 1900 to 2019 for pt 107
 
-hep_b <- read_excel("Hepatitis B Cases - NCH Deidentified.xlsx")
-hep_c <- read_csv("Hep_C.csv")
-
-# write.csv(hep_c, "C:/Users/miche/Downloads/hep_c_export.csv", row.names = FALSE)
+hep_b <- readxl::read_excel(
+  file.path(getwd(), "datasets", "Hepatitis B Cases - NCH Deidentified.xlsx")
+)
+hep_c <- readr::read_csv(
+  file.path(getwd(), "datasets", "Hep_C.csv")
+)
 
 hep_b_clean <- hep_b[, -c(3:6,13:20)]
 hep_c_clean <- hep_c[, -c(3:6,13:20)]
@@ -104,7 +102,7 @@ p <- ggplot(plot_data, aes(x = days, y = titer, group = id, color = factor(age_g
   geom_line(na.rm = TRUE, alpha = 0.5) +
   geom_point(na.rm = TRUE) +
   geom_smooth(aes(group = age_group, color = factor(age_group)), 
-              method = "gam", se = FALSE, size = 1.2) +
+              method = "loess", se = FALSE, size = 1.2) +
   scale_y_log10(labels = label_number()) +
   labs(
     x = "Time from Initial Encounter (Days)",
@@ -163,7 +161,7 @@ plot_with_text <- plot_grid(
 
 print(plot_with_text)
 
-ggsave("hbsag_spaghetti.png", plot = plot_with_text, dpi = 300)
+ggsave("figure_outputs/hbsag_spaghetti.png", plot = plot_with_text, dpi = 300)
 ```
 
 ```{r, include=FALSE}
@@ -283,6 +281,6 @@ plot_with_text <- plot_grid(
 
 print(plot_with_text)
 
-ggsave("HCV_spaghetti.png", plot = plot_with_text, dpi = 300)
+ggsave("figure_outputs/HCV_spaghetti.png", plot = plot_with_text, dpi = 300)
 
 ```
