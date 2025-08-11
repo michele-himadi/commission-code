@@ -117,7 +117,7 @@ p <- ggplot(plot_data, aes(x = days, y = fib4, group = id, color = factor(age_gr
   scale_x_log10(labels = label_number()) +
   labs(
     x = "Log Scale of Time from Initial Encounter (Days)",
-    y = "FIB-4 Score Log Scale (IU/L)",
+    y = "FIB-4 Score Log Scale",
     color = "Age Group"
   ) +
   theme_minimal(base_size = 14) +  # increase base font size
@@ -220,7 +220,7 @@ p <- ggplot(plot_data, aes(x = days, y = apri, group = id, color = factor(age_gr
   scale_x_log10(labels = label_number()) +
   labs(
     x = "Log Scale of Time from Initial Encounter (Days)",
-    y = "APRI Score Log Scale (IU/L)",
+    y = "APRI Score Log Scale",
     color = "Age Group"
   ) +
   theme_minimal(base_size = 14) +  # increase base font size
