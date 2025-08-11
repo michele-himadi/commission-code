@@ -10,7 +10,7 @@ output: html_document
 ## package installs
 # install.packages("readxl")
 # install.packages("readr")
-install.packages("dplyr")
+# install.packages("dplyr")
 
 # library
 library(readxl)
@@ -30,17 +30,15 @@ library(grid)
 # ***************         Extract and Import Data             **************** #                  
 # **************************************************************************** #
 
-# the documents were downloaded from email, so set wd to your personal Downloads folder
-# ensure you run the chunk as a whole
-setwd("C:/Users/miche/Downloads")
+hep_b <- readxl::read_excel(
+  file.path(getwd(), "datasets", "Hepatitis B Cases - NCH Deidentified.xlsx")
+)
+hep_c <- readxl::read_excel(
+  file.path(getwd(), "datasets", "Hepatitis C Cases - NCH Deidentified.xlsx")
+)
 
-#Hep B data can be read fine as an excel, Hep C data needed to be validated first: uploaded into Google Drive, then exported as .csv
-
-hep_b <- read_excel("Hepatitis B Cases - NCH Deidentified.xlsx")
-hep_c <- read_csv("Hep_C.csv")
-
-# write.csv(hep_c, "C:/Users/miche/Downloads/hep_c_export.csv", row.names = FALSE)
-
+hep_b_clean <- hep_b[, -c(3:6,13:18)]
+hep_c_clean <- hep_c[, -c(3:6,13:18)]
 ```
 
 ```{r, include=FALSE}
@@ -48,110 +46,112 @@ hep_c <- read_csv("Hep_C.csv")
 # ***************       HepB MELD Score Calculations          **************** #                  
 # **************************************************************************** #
 
-hep_b_clean <- hep_b[, -c(3:6,13:20)]
 
 # MELD 1
 hep_b_clean$MELD_NA_1 <- NA
 for(i in seq_len(nrow(hep_b_clean))) {
+  val_15 <- hep_b_clean[i, 15]
   val_13 <- hep_b_clean[i, 13]
-  val_11 <- hep_b_clean[i, 11]
-  val_18 <- hep_b_clean[i, 18]
-  # Replace blank or NA in val_18 with 1.0
-  if (is.na(val_18) || val_18 == "") {
-    val_18 <- 1.0
+  val_20 <- hep_b_clean[i, 20]
+  # Replace blank or NA in val_20 with 1.0
+  if (is.na(val_20) || val_20 == "") {
+    val_20 <- 1.0
   }
-  val_14 <- hep_b_clean[i, 14]
+  val_16 <- hep_b_clean[i, 16]
+  val_15_clamped <- max(val_15, 1.0)
   val_13_clamped <- max(val_13, 1.0)
-  val_11_clamped <- max(val_11, 1.0)
-  MELD_score_1 <- ((0.957 * log(val_13_clamped)) + (0.378 * log(val_11_clamped)) + (1.12 * log(val_18) + 0.643)) * 10
-  val_14_clamped <- min(max(val_14, 125), 137)
-  MELD_NA_1 <- MELD_score_1 + 1.32 * (137 - val_14_clamped) - (0.033 * MELD_score_1 * (137 - val_14_clamped))
+  MELD_score_1 <- ((0.957 * log(val_15_clamped)) + (0.378 * log(val_13_clamped)) + (1.12 * log(val_20) + 0.643)) * 10
+  val_16_clamped <- min(max(val_16, 125), 137)
+  MELD_NA_1 <- MELD_score_1 + 1.32 * (137 - val_16_clamped) - (0.033 * MELD_score_1 * (137 - val_16_clamped))
   hep_b_clean$MELD_NA_1[i] <- MELD_NA_1
 }
+hep_b_clean$MELD_NA_1 <- as.numeric(hep_b_clean$MELD_NA_1)
 
 
 # MELD 2
 hep_b_clean$MELD_NA_2 <- NA
 for(i in seq_len(nrow(hep_b_clean))) {
-  val_24 <- hep_b_clean[i, 24]
-  val_22 <- hep_b_clean[i, 22]
-  val_29 <- hep_b_clean[i, 29]
-  # Replace blank or NA in val_29 with 1.0
-  if (is.na(val_29) || val_29 == "") {
-    val_29 <- 1.0
+  val_28 <- hep_b_clean[i, 28]
+  val_26 <- hep_b_clean[i, 26]
+  val_33 <- hep_b_clean[i, 33]
+  # Replace blank or NA in val_33 with 1.0
+  if (is.na(val_33) || val_33 == "") {
+    val_33 <- 1.0
   }
-  val_25 <- hep_b_clean[i, 25]
-  val_24_clamped <- max(val_24, 1.0)
-  val_22_clamped <- max(val_22, 1.0)
-  MELD_score_2 <- ((0.957 * log(val_24_clamped)) + (0.378 * log(val_22_clamped)) + (1.12 * log(val_29) + 0.643)) * 10
-  val_25_clamped <- min(max(val_25, 125), 137)
-  MELD_NA_2 <- MELD_score_2 + 1.32 * (137 - val_25_clamped) - (0.033 * MELD_score_2 * (137 - val_25_clamped))
+  val_29 <- hep_b_clean[i, 29]
+  val_28_clamped <- max(val_28, 1.0)
+  val_26_clamped <- max(val_26, 1.0)
+  MELD_score_2 <- ((0.957 * log(val_28_clamped)) + (0.378 * log(val_26_clamped)) + (1.12 * log(val_33) + 0.643)) * 10
+  val_29_clamped <- min(max(val_29, 125), 137)
+  MELD_NA_2 <- MELD_score_2 + 1.32 * (137 - val_29_clamped) - (0.033 * MELD_score_2 * (137 - val_29_clamped))
   hep_b_clean$MELD_NA_2[i] <- MELD_NA_2
 }
+hep_b_clean$MELD_NA_2 <- as.numeric(hep_b_clean$MELD_NA_2)
 
 
 # MELD 3
 hep_b_clean$MELD_NA_3 <- NA  # Initialize the new column
 for(i in seq_len(nrow(hep_b_clean))) {
-  val_35 <- hep_b_clean[i, 35]
-  val_33 <- hep_b_clean[i, 33]
-  val_40 <- hep_b_clean[i, 40]
-  # Replace blank or NA in val_40 with 1.0
-  if (is.na(val_40) || val_40 == "") {
-    val_40 <- 1.0
+  val_41 <- hep_b_clean[i, 41]
+  val_39 <- hep_b_clean[i, 39]
+  val_46 <- hep_b_clean[i, 46]
+  # Replace blank or NA in val_46 with 1.0
+  if (is.na(val_46) || val_46 == "") {
+    val_46 <- 1.0
   }
-    val_36 <- hep_b_clean[i, 36]
-  val_35_clamped <- max(val_35, 1.0)
-  val_33_clamped <- max(val_33, 1.0)
-  MELD_score_3 <- ((0.957 * log(val_35_clamped)) + (0.378 * log(val_33_clamped)) + (1.12 * log(val_40) + 0.643)) * 10
-  val_36_clamped <- min(max(val_36, 125), 137)
-  MELD_NA_3 <- MELD_score_3 + 1.32 * (137 - val_36_clamped) - (0.033 * MELD_score_3 * (137 - val_36_clamped))
+    val_42 <- hep_b_clean[i, 42]
+  val_41_clamped <- max(val_41, 1.0)
+  val_39_clamped <- max(val_39, 1.0)
+  MELD_score_3 <- ((0.957 * log(val_41_clamped)) + (0.378 * log(val_39_clamped)) + (1.12 * log(val_46) + 0.643)) * 10
+  val_42_clamped <- min(max(val_42, 125), 137)
+  MELD_NA_3 <- MELD_score_3 + 1.32 * (137 - val_42_clamped) - (0.033 * MELD_score_3 * (137 - val_42_clamped))
   hep_b_clean$MELD_NA_3[i] <- MELD_NA_3
 }
-
+hep_b_clean$MELD_NA_3 <- as.numeric(hep_b_clean$MELD_NA_3)
 
 # MELD 4
 hep_b_clean$MELD_NA_4 <- NA  
 for(i in seq_len(nrow(hep_b_clean))) {
-  val_46 <- hep_b_clean[i, 46]
-  val_44 <- hep_b_clean[i, 44]
-  val_51 <- hep_b_clean[i, 51]
-  # Replace blank or NA in val_51 with 1.0
-  if (is.na(val_51) || val_51 == "") {
-    val_51 <- 1.0
+  val_54 <- hep_b_clean[i, 54]
+  val_52 <- hep_b_clean[i, 52]
+  val_59 <- hep_b_clean[i, 59]
+  # Replace blank or NA in val_59 with 1.0
+  if (is.na(val_59) || val_59 == "") {
+    val_59 <- 1.0
   }
-  val_47 <- hep_b_clean[i, 47]
-  val_46_clamped <- max(val_46, 1.0)
-  val_44_clamped <- max(val_44, 1.0)
-  MELD_score_4 <- ((0.957 * log(val_46_clamped)) + (0.378 * log(val_44_clamped)) + (1.12 * log(val_51) + 0.643)) * 10
-  val_47_clamped <- min(max(val_47, 125), 137)
-  MELD_NA_4 <- MELD_score_4 + 1.32 * (137 - val_47_clamped) - (0.033 * MELD_score_4 * (137 - val_47_clamped))
+  val_55 <- hep_b_clean[i, 55]
+  val_54_clamped <- max(val_54, 1.0)
+  val_52_clamped <- max(val_52, 1.0)
+  MELD_score_4 <- ((0.957 * log(val_54_clamped)) + (0.378 * log(val_52_clamped)) + (1.12 * log(val_59) + 0.643)) * 10
+  val_55_clamped <- min(max(val_55, 125), 137)
+  MELD_NA_4 <- MELD_score_4 + 1.32 * (137 - val_55_clamped) - (0.033 * MELD_score_4 * (137 - val_55_clamped))
   hep_b_clean$MELD_NA_4[i] <- MELD_NA_4
 }
-
+hep_b_clean$MELD_NA_4 <- as.numeric(hep_b_clean$MELD_NA_4)
 
 # MELD 5
 hep_b_clean$MELD_NA_5 <- NA 
 for(i in seq_len(nrow(hep_b_clean))) {
-  val_57 <- hep_b_clean[i, 57]
-  val_55 <- hep_b_clean[i, 55]
-  val_62 <- hep_b_clean[i, 62]
-  # Replace blank or NA in val_62 with 1.0
-  if (is.na(val_62) || val_62 == "") {
+  val_67 <- hep_b_clean[i, 67]
+  val_65 <- hep_b_clean[i, 65]
+  val_72 <- hep_b_clean[i, 72]
+  # Replace blank or NA in val_72 with 1.0
+  if (is.na(val_72) || val_72 == "") {
     val_62 <- 1.0
   }
-  val_58 <- hep_b_clean[i, 58]
-  val_57_clamped <- max(val_57, 1.0)
-  val_55_clamped <- max(val_55, 1.0)
-  MELD_score_5 <- ((0.957 * log(val_57_clamped)) + 
-                   (0.378 * log(val_55_clamped)) + 
-                   (1.12 * log(val_62) + 0.643)) * 10
-  val_58_clamped <- min(max(val_58, 125), 137)
-  MELD_NA_5 <- MELD_score_5 + 1.32 * (137 - val_58_clamped) - (0.033 * MELD_score_5 * (137 - val_58_clamped))
+  val_68 <- hep_b_clean[i, 68]
+  val_67_clamped <- max(val_67, 1.0)
+  val_65_clamped <- max(val_65, 1.0)
+  MELD_score_5 <- ((0.957 * log(val_67_clamped)) + 
+                   (0.378 * log(val_65_clamped)) + 
+                   (1.12 * log(val_72) + 0.643)) * 10
+  val_68_clamped <- min(max(val_68, 125), 137)
+  MELD_NA_5 <- MELD_score_5 + 1.32 * (137 - val_68_clamped) - (0.033 * MELD_score_5 * (137 - val_68_clamped))
   hep_b_clean$MELD_NA_5[i] <- MELD_NA_5
 }
+hep_b_clean$MELD_NA_5 <- as.numeric(hep_b_clean$MELD_NA_5)
 
-hep_b_MELDNA <- hep_b_clean[, c(11,13,14,18,22,24,25,29,33,35,36,40,44,46,47,51,55,57,58,62,64:68)]
+hep_b_MELDNA <- hep_b_clean[, c(1,2,13,15,16,20,26,28,29,33,39,41,42,46,52,54,55,59,74:78)]
 hep_b_MELDNA$MELD_NA_1 <- as.numeric(hep_b_MELDNA$MELD_NA_1)
 hep_b_MELDNA$MELD_NA_2 <- as.numeric(hep_b_MELDNA$MELD_NA_2)
 hep_b_MELDNA$MELD_NA_3 <- as.numeric(hep_b_MELDNA$MELD_NA_3)
@@ -159,5 +159,126 @@ hep_b_MELDNA$MELD_NA_4 <- as.numeric(hep_b_MELDNA$MELD_NA_4)
 hep_b_MELDNA$MELD_NA_5 <- as.numeric(hep_b_MELDNA$MELD_NA_5)
 
 write.csv(hep_b_MELDNA, "B_MELD_NA.csv", row.names = FALSE)
+
+```
+
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************       HepC MELD Score Calculations          **************** #                  
+# **************************************************************************** #
+
+
+# MELD 1
+hep_c_clean$MELD_NA_1 <- NA
+for(i in seq_len(nrow(hep_c_clean))) {
+  val_15 <- hep_c_clean[i, 15]
+  val_13 <- hep_c_clean[i, 13]
+  val_20 <- hep_c_clean[i, 20]
+  # Replace blank or NA in val_20 with 1.0
+  if (is.na(val_20) || val_20 == "") {
+    val_20 <- 1.0
+  }
+  val_16 <- hep_c_clean[i, 16]
+  val_15_clamped <- max(val_15, 1.0)
+  val_13_clamped <- max(val_13, 1.0)
+  MELD_score_1 <- ((0.957 * log(val_15_clamped)) + (0.378 * log(val_13_clamped)) + (1.12 * log(val_20) + 0.643)) * 10
+  val_16_clamped <- min(max(val_16, 125), 137)
+  MELD_NA_1 <- MELD_score_1 + 1.32 * (137 - val_16_clamped) - (0.033 * MELD_score_1 * (137 - val_16_clamped))
+  hep_c_clean$MELD_NA_1[i] <- MELD_NA_1
+}
+hep_c_clean$MELD_NA_1 <- as.numeric(hep_c_clean$MELD_NA_1)
+
+
+# MELD 2
+hep_c_clean$MELD_NA_2 <- NA
+for(i in seq_len(nrow(hep_c_clean))) {
+  val_28 <- hep_c_clean[i, 28]
+  val_26 <- hep_c_clean[i, 26]
+  val_33 <- hep_c_clean[i, 33]
+  # Replace blank or NA in val_33 with 1.0
+  if (is.na(val_33) || val_33 == "") {
+    val_33 <- 1.0
+  }
+  val_29 <- hep_c_clean[i, 29]
+  val_28_clamped <- max(val_28, 1.0)
+  val_26_clamped <- max(val_26, 1.0)
+  MELD_score_2 <- ((0.957 * log(val_28_clamped)) + (0.378 * log(val_26_clamped)) + (1.12 * log(val_33) + 0.643)) * 10
+  val_29_clamped <- min(max(val_29, 125), 137)
+  MELD_NA_2 <- MELD_score_2 + 1.32 * (137 - val_29_clamped) - (0.033 * MELD_score_2 * (137 - val_29_clamped))
+  hep_c_clean$MELD_NA_2[i] <- MELD_NA_2
+}
+hep_c_clean$MELD_NA_2 <- as.numeric(hep_c_clean$MELD_NA_2)
+
+
+# MELD 3
+hep_c_clean$MELD_NA_3 <- NA  # Initialize the new column
+for(i in seq_len(nrow(hep_c_clean))) {
+  val_41 <- hep_c_clean[i, 41]
+  val_39 <- hep_c_clean[i, 39]
+  val_46 <- hep_c_clean[i, 46]
+  # Replace blank or NA in val_46 with 1.0
+  if (is.na(val_46) || val_46 == "") {
+    val_46 <- 1.0
+  }
+    val_42 <- hep_c_clean[i, 42]
+  val_41_clamped <- max(val_41, 1.0)
+  val_39_clamped <- max(val_39, 1.0)
+  MELD_score_3 <- ((0.957 * log(val_41_clamped)) + (0.378 * log(val_39_clamped)) + (1.12 * log(val_46) + 0.643)) * 10
+  val_42_clamped <- min(max(val_42, 125), 137)
+  MELD_NA_3 <- MELD_score_3 + 1.32 * (137 - val_42_clamped) - (0.033 * MELD_score_3 * (137 - val_42_clamped))
+  hep_c_clean$MELD_NA_3[i] <- MELD_NA_3
+}
+hep_c_clean$MELD_NA_3 <- as.numeric(hep_c_clean$MELD_NA_3)
+
+# MELD 4
+hep_c_clean$MELD_NA_4 <- NA  
+for(i in seq_len(nrow(hep_c_clean))) {
+  val_54 <- hep_c_clean[i, 54]
+  val_52 <- hep_c_clean[i, 52]
+  val_59 <- hep_c_clean[i, 59]
+  # Replace blank or NA in val_59 with 1.0
+  if (is.na(val_59) || val_59 == "") {
+    val_59 <- 1.0
+  }
+  val_55 <- hep_c_clean[i, 55]
+  val_54_clamped <- max(val_54, 1.0)
+  val_52_clamped <- max(val_52, 1.0)
+  MELD_score_4 <- ((0.957 * log(val_54_clamped)) + (0.378 * log(val_52_clamped)) + (1.12 * log(val_59) + 0.643)) * 10
+  val_55_clamped <- min(max(val_55, 125), 137)
+  MELD_NA_4 <- MELD_score_4 + 1.32 * (137 - val_55_clamped) - (0.033 * MELD_score_4 * (137 - val_55_clamped))
+  hep_c_clean$MELD_NA_4[i] <- MELD_NA_4
+}
+hep_c_clean$MELD_NA_4 <- as.numeric(hep_c_clean$MELD_NA_4)
+
+# MELD 5
+hep_c_clean$MELD_NA_5 <- NA 
+for(i in seq_len(nrow(hep_c_clean))) {
+  val_67 <- hep_c_clean[i, 67]
+  val_65 <- hep_c_clean[i, 65]
+  val_72 <- hep_c_clean[i, 72]
+  # Replace blank or NA in val_72 with 1.0
+  if (is.na(val_72) || val_72 == "") {
+    val_62 <- 1.0
+  }
+  val_68 <- hep_c_clean[i, 68]
+  val_67_clamped <- max(val_67, 1.0)
+  val_65_clamped <- max(val_65, 1.0)
+  MELD_score_5 <- ((0.957 * log(val_67_clamped)) + 
+                   (0.378 * log(val_65_clamped)) + 
+                   (1.12 * log(val_72) + 0.643)) * 10
+  val_68_clamped <- min(max(val_68, 125), 137)
+  MELD_NA_5 <- MELD_score_5 + 1.32 * (137 - val_68_clamped) - (0.033 * MELD_score_5 * (137 - val_68_clamped))
+  hep_c_clean$MELD_NA_5[i] <- MELD_NA_5
+}
+hep_c_clean$MELD_NA_5 <- as.numeric(hep_c_clean$MELD_NA_5)
+
+hep_c_MELDNA <- hep_c_clean[, c(1,2,13,15,16,20,26,28,29,33,39,41,42,46,52,54,55,59,74:78)]
+hep_c_MELDNA$MELD_NA_1 <- as.numeric(hep_c_MELDNA$MELD_NA_1)
+hep_c_MELDNA$MELD_NA_2 <- as.numeric(hep_c_MELDNA$MELD_NA_2)
+hep_c_MELDNA$MELD_NA_3 <- as.numeric(hep_c_MELDNA$MELD_NA_3)
+hep_c_MELDNA$MELD_NA_4 <- as.numeric(hep_c_MELDNA$MELD_NA_4)
+hep_c_MELDNA$MELD_NA_5 <- as.numeric(hep_c_MELDNA$MELD_NA_5)
+
+write.csv(hep_c_MELDNA, "C_MELD_NA.csv", row.names = FALSE)
 
 ```

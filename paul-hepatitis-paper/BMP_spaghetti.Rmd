@@ -10,7 +10,7 @@ output: html_document
 ## package installs
 # install.packages("readxl")
 # install.packages("readr")
-install.packages("dplyr")
+# install.packages("dplyr")
 
 # library
 library(readxl)
@@ -30,19 +30,18 @@ library(grid)
 # ***************         Extract and Import Data             **************** #                  
 # **************************************************************************** #
 
-#Hep B data can be read fine as an excel, Hep C data needed to be validated first: uploaded into Google Drive, then exported as .csv
-# hep_b file had some issues with creatinine and sodium, pt 11 creatinine 4 value was 133 and sodium was 5.2, an outlier, and were switched
+
 # hep_c file had issues with BMP test date, pt 107 had "2002-12-05", changed to 2022. pt 120's BMP 5 was also taken on an earlier date than their BMP 2, so it was appropriately adjusted.
 
 hep_b <- readxl::read_excel(
   file.path(getwd(), "datasets", "Hepatitis B Cases - NCH Deidentified.xlsx")
 )
-hep_c <- readr::read_csv(
-  file.path(getwd(), "datasets", "Hep_C.csv")
+hep_c <- readxl::read_excel(
+  file.path(getwd(), "datasets", "Hepatitis C Cases - NCH Deidentified.xlsx")
 )
 
-hep_b_clean <- hep_b[, -c(3:6,13:20)]
-hep_c_clean <- hep_c[, -c(3:6,13:20)]
+hep_b_clean <- hep_b[, -c(3:6,13:18)]
+hep_c_clean <- hep_c[, -c(3:6,13:18)]
 
 ```
 
@@ -55,7 +54,7 @@ hep_c_clean <- hep_c[, -c(3:6,13:20)]
 
 
 #BMP formatting
-hep_b_bmp <- hep_b_clean[, c(1,2,13:15, 24:26, 35:37, 46:48, 57:59)]
+hep_b_bmp <- hep_b_clean[, c(1,2,15:17, 28:30, 41:43, 54:56, 67:69)]
 hep_b_bmp$`Date of BMP 1` <- as.Date(hep_b_bmp$`Date of BMP 1`, format = "%Y-%m-%d")
 hep_b_bmp$`Date of BMP 2` <- as.Date(hep_b_bmp$`Date of BMP 2`, format = "%Y-%m-%d")
 hep_b_bmp$`Date of BMP 3` <- as.Date(hep_b_bmp$`Date of BMP 3`, format = "%Y-%m-%d")

@@ -30,18 +30,17 @@ library(grid)
 # ***************         Extract and Import Data             **************** #                  
 # **************************************************************************** #
 
-#Hep B data can be read fine as an excel, Hep C data needed to be validated first: uploaded into Google Drive, then exported as .csv
 # hep_c file had pt 76 and 107 have some issues - we switched titer 1 and 2 for pt 76 and change 1900 to 2019 for pt 107
 
 hep_b <- readxl::read_excel(
   file.path(getwd(), "datasets", "Hepatitis B Cases - NCH Deidentified.xlsx")
 )
-hep_c <- readr::read_csv(
-  file.path(getwd(), "datasets", "Hep_C.csv")
+hep_c <- readxl::read_excel(
+  file.path(getwd(), "datasets", "Hepatitis C Cases - NCH Deidentified.xlsx")
 )
 
-hep_b_clean <- hep_b[, -c(3:6,13:20)]
-hep_c_clean <- hep_c[, -c(3:6,13:20)]
+hep_b_clean <- hep_b[, -c(3:6,13:18)]
+hep_c_clean <- hep_c[, -c(3:6,13:18)]
 
 ```
 
