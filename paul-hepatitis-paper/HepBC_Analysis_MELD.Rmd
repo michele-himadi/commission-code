@@ -21,6 +21,7 @@ library(ggplot2)
 library(mgcv)
 library(cowplot)
 library(grid)
+library(tidyverse)
 
 ```
 
@@ -151,7 +152,18 @@ for(i in seq_len(nrow(hep_b_clean))) {
 }
 hep_b_clean$MELD_NA_5 <- as.numeric(hep_b_clean$MELD_NA_5)
 
-hep_b_MELDNA <- hep_b_clean[, c(1,2,13,15,16,20,26,28,29,33,39,41,42,46,52,54,55,59,74:78)]
+#LFT date formatting
+hep_b_clean$`Date of LFTs 1` <- as.Date(hep_b_clean$`Date of LFTs 1`, format = "%Y-%m-%d")
+hep_b_clean$`Date of LFTs 2` <- as.Date(hep_b_clean$`Date of LFTs 2`, format = "%Y-%m-%d")
+hep_b_clean$`Date of LFTs 3` <- as.Date(hep_b_clean$`Date of LFTs 3`, format = "%Y-%m-%d")
+hep_b_clean$`Date of LFTs 4` <- as.Date(hep_b_clean$`Date of LFTs 3`, format = "%Y-%m-%d")
+hep_b_clean$`Date of LFTs 5` <- as.Date(hep_b_clean$`Date of LFTs 3`, format = "%Y-%m-%d")
+hep_b_clean$date2 <- as.numeric(hep_b_clean[[27]] - hep_b_clean[[14]])
+hep_b_clean$date3 <- as.numeric(hep_b_clean[[40]] - hep_b_clean[[14]])
+hep_b_clean$date4 <- as.numeric(hep_b_clean[[53]] - hep_b_clean[[14]])
+hep_b_clean$date5 <- as.numeric(hep_b_clean[[66]] - hep_b_clean[[14]])
+
+hep_b_MELDNA <- hep_b_clean[, c(1,2,13,15,16,20,26,28,29,33,39,41,42,46,52,54,55,59,74:82)]
 hep_b_MELDNA$MELD_NA_1 <- as.numeric(hep_b_MELDNA$MELD_NA_1)
 hep_b_MELDNA$MELD_NA_2 <- as.numeric(hep_b_MELDNA$MELD_NA_2)
 hep_b_MELDNA$MELD_NA_3 <- as.numeric(hep_b_MELDNA$MELD_NA_3)
@@ -159,6 +171,115 @@ hep_b_MELDNA$MELD_NA_4 <- as.numeric(hep_b_MELDNA$MELD_NA_4)
 hep_b_MELDNA$MELD_NA_5 <- as.numeric(hep_b_MELDNA$MELD_NA_5)
 
 write.csv(hep_b_MELDNA, "B_MELD_NA.csv", row.names = FALSE)
+
+#age grouping
+hep_b_MELDNA <- hep_b_MELDNA %>%
+  mutate(
+    age_group = case_when(
+      `Age in Years` >= 30 & `Age in Years` <= 50 ~ "30–50",
+      `Age in Years` >= 70 & `Age in Years` <= 90 ~ "70–90",
+      TRUE ~ NA_character_
+    )
+  )
+
+n <- nrow(hep_b_MELDNA)
+plot_data <- data.frame(
+  id = rep(1:n, each = 5),
+  days = as.vector(t(cbind(
+    rep(0, n),         # Day 0 for lft 1
+    hep_b_MELDNA$date2,   # Day for lft 2
+    hep_b_MELDNA$date3,    # Day for lft 3
+    hep_b_MELDNA$date4,
+    hep_b_MELDNA$date5
+  ))),
+  meldna = as.vector(t(cbind(
+    hep_b_MELDNA$`MELD_NA_1`,
+    hep_b_MELDNA$`MELD_NA_2`,
+    hep_b_MELDNA$`MELD_NA_3`,
+    hep_b_MELDNA$`MELD_NA_4`,
+    hep_b_MELDNA$`MELD_NA_5`
+  ))),
+  age_group = rep(hep_b_MELDNA$age_group, each = 5)
+)
+
+
+#clean the MELD_NA column, clean white space, ensure age_group is factor
+plot_data$meldna <- trimws(plot_data$meldna)
+plot_data$meldna <- gsub("[\u00A0]", "", plot_data$meldna)
+plot_data$meldna <- gsub(",", "", plot_data$meldna)
+plot_data$meldna <- as.numeric(plot_data$meldna)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = meldna, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(aes(group = age_group, color = factor(age_group)), 
+              method = "gam", se = FALSE, size = 1.2) +
+  scale_y_continuous(labels = label_number()) +
+  scale_x_log10(labels = label_number()) +
+  labs(
+    x = "Log Scale of Time from Initial Encounter (Days)",
+    y = "MELD NA",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+plot_data_clean <- subset(plot_data, !is.na(meldna) & meldna > 0)
+gam_model1 <- gam(log10(meldna) ~ s(days) + age_group, data = plot_data_clean)
+
+gam_model2 <- gam(log10(meldna) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data_clean)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$meldna, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("figure_outputs/hb_meldna_spaghetti.png", plot = plot_with_text, dpi = 300)
 
 ```
 
@@ -272,13 +393,133 @@ for(i in seq_len(nrow(hep_c_clean))) {
 }
 hep_c_clean$MELD_NA_5 <- as.numeric(hep_c_clean$MELD_NA_5)
 
-hep_c_MELDNA <- hep_c_clean[, c(1,2,13,15,16,20,26,28,29,33,39,41,42,46,52,54,55,59,74:78)]
+#LFT date formatting
+hep_c_clean$`Date of LFTs 1` <- as.Date(hep_c_clean$`Date of LFTs 1`, format = "%Y-%m-%d")
+hep_c_clean$`Date of LFTs 2` <- as.Date(hep_c_clean$`Date of LFTs 2`, format = "%Y-%m-%d")
+hep_c_clean$`Date of LFTs 3` <- as.Date(hep_c_clean$`Date of LFTs 3`, format = "%Y-%m-%d")
+hep_c_clean$`Date of LFTs 4` <- as.Date(hep_c_clean$`Date of LFTs 3`, format = "%Y-%m-%d")
+hep_c_clean$`Date of LFTs 5` <- as.Date(hep_c_clean$`Date of LFTs 3`, format = "%Y-%m-%d")
+hep_c_clean$date2 <- as.numeric(hep_c_clean[[27]] - hep_c_clean[[14]])
+hep_c_clean$date3 <- as.numeric(hep_c_clean[[40]] - hep_c_clean[[14]])
+hep_c_clean$date4 <- as.numeric(hep_c_clean[[53]] - hep_c_clean[[14]])
+hep_c_clean$date5 <- as.numeric(hep_c_clean[[66]] - hep_c_clean[[14]])
+
+hep_c_MELDNA <- hep_c_clean[, c(1,2,13,15,16,20,26,28,29,33,39,41,42,46,52,54,55,59,74:82)]
 hep_c_MELDNA$MELD_NA_1 <- as.numeric(hep_c_MELDNA$MELD_NA_1)
 hep_c_MELDNA$MELD_NA_2 <- as.numeric(hep_c_MELDNA$MELD_NA_2)
 hep_c_MELDNA$MELD_NA_3 <- as.numeric(hep_c_MELDNA$MELD_NA_3)
 hep_c_MELDNA$MELD_NA_4 <- as.numeric(hep_c_MELDNA$MELD_NA_4)
 hep_c_MELDNA$MELD_NA_5 <- as.numeric(hep_c_MELDNA$MELD_NA_5)
 
-write.csv(hep_c_MELDNA, "C_MELD_NA.csv", row.names = FALSE)
+write.csv(hep_c_MELDNA, "B_MELD_NA.csv", row.names = FALSE)
+
+#age grouping
+hep_c_MELDNA <- hep_c_MELDNA %>%
+  mutate(
+    age_group = case_when(
+      `Age in Years` >= 30 & `Age in Years` <= 50 ~ "30–50",
+      `Age in Years` >= 70 & `Age in Years` <= 90 ~ "70–90",
+      TRUE ~ NA_character_
+    )
+  )
+
+n <- nrow(hep_c_MELDNA)
+plot_data <- data.frame(
+  id = rep(1:n, each = 5),
+  days = as.vector(t(cbind(
+    rep(0, n),         # Day 0 for lft 1
+    hep_c_MELDNA$date2,   # Day for lft 2
+    hep_c_MELDNA$date3,    # Day for lft 3
+    hep_c_MELDNA$date4,
+    hep_c_MELDNA$date5
+  ))),
+  meldna = as.vector(t(cbind(
+    hep_c_MELDNA$`MELD_NA_1`,
+    hep_c_MELDNA$`MELD_NA_2`,
+    hep_c_MELDNA$`MELD_NA_3`,
+    hep_c_MELDNA$`MELD_NA_4`,
+    hep_c_MELDNA$`MELD_NA_5`
+  ))),
+  age_group = rep(hep_c_MELDNA$age_group, each = 5)
+)
+
+
+#clean the MELD_NA column, clean white space, ensure age_group is factor
+plot_data$meldna <- trimws(plot_data$meldna)
+plot_data$meldna <- gsub("[\u00A0]", "", plot_data$meldna)
+plot_data$meldna <- gsub(",", "", plot_data$meldna)
+plot_data$meldna <- as.numeric(plot_data$meldna)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = meldna, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(aes(group = age_group, color = factor(age_group)), 
+              method = "gam", se = FALSE, size = 1.2) +
+  scale_y_continuous(labels = label_number()) +
+  scale_x_log10(labels = label_number()) +
+  labs(
+    x = "Log Scale of Time from Initial Encounter (Days)",
+    y = "MELD NA",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+plot_data_clean <- subset(plot_data, !is.na(meldna) & meldna > 0)
+gam_model1 <- gam(log10(meldna) ~ s(days) + age_group, data = plot_data_clean)
+
+gam_model2 <- gam(log10(meldna) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data_clean)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$meldna, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("figure_outputs/hc_meldna_spaghetti.png", plot = plot_with_text, dpi = 300)
 
 ```
