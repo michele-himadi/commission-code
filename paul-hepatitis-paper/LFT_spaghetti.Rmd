@@ -29,8 +29,6 @@ library(grid)
 # ***************         Extract and Import Data             **************** #                  
 # **************************************************************************** #
 
-# hep_c file had issues with BMP test date, pt 107 had "2002-12-05", changed to 2022. pt 120's BMP 5 was also taken on an earlier date than their BMP 2, so it was appropriately adjusted.
-
 hep_b <- readxl::read_excel(
   file.path(getwd(), "datasets", "Hepatitis B Cases - NCH Deidentified.xlsx")
 )
@@ -45,7 +43,7 @@ hep_c_clean <- hep_c[, -c(3:6,13:18)]
 
 ```{r, include=FALSE}
 # **************************************************************************** #
-# ***************         LFT Format and Spaghetti           **************** #                  
+# ***************       Hb  LFT Format and Spaghetti          **************** #                  
 # **************************************************************************** #
 
 #LFT - ALT, AST, Bilirubin
@@ -589,5 +587,555 @@ plot_with_text <- plot_grid(
 print(plot_with_text)
 
 ggsave("figure_outputs/hblft_tbil_spaghetti.png", plot = plot_with_text, dpi = 300)
+
+```
+
+
+```{r, include=FALSE}
+# **************************************************************************** #
+# ***************       Hc  LFT Format and Spaghetti          **************** #                  
+# **************************************************************************** #
+
+#LFT - ALT, AST, Bilirubin
+
+#LFT formatting
+hep_c_lft <- hep_c_clean[, c(1,2,9:14, 22:27, 35:40, 48:53, 61:66)]
+hep_c_lft$`Date of LFTs 1` <- as.Date(hep_c_lft$`Date of LFTs 1`, format = "%Y-%m-%d")
+hep_c_lft$`Date of LFTs 2` <- as.Date(hep_c_lft$`Date of LFTs 2`, format = "%Y-%m-%d")
+hep_c_lft$`Date of LFTs 3` <- as.Date(hep_c_lft$`Date of LFTs 3`, format = "%Y-%m-%d")
+hep_c_lft$`Date of LFTs 4` <- as.Date(hep_c_lft$`Date of LFTs 3`, format = "%Y-%m-%d")
+hep_c_lft$`Date of LFTs 5` <- as.Date(hep_c_lft$`Date of LFTs 3`, format = "%Y-%m-%d")
+hep_c_lft$date2 <- as.numeric(hep_c_lft[[14]] - hep_c_lft[[8]])
+hep_c_lft$date3 <- as.numeric(hep_c_lft[[20]] - hep_c_lft[[8]])
+hep_c_lft$date4 <- as.numeric(hep_c_lft[[26]] - hep_c_lft[[8]])
+hep_c_lft$date5 <- as.numeric(hep_c_lft[[32]] - hep_c_lft[[8]])
+
+#age grouping
+hep_c_lft <- hep_c_lft %>%
+  mutate(
+    age_group = case_when(
+      `Age in Years` >= 30 & `Age in Years` <= 50 ~ "30–50",
+      `Age in Years` >= 70 & `Age in Years` <= 90 ~ "70–90",
+      TRUE ~ NA_character_
+    )
+  )
+
+########################################## FIB-4 Score ##########################################
+
+#making data frame
+n <- nrow(hep_c_lft)
+plot_data <- data.frame(
+  id = rep(1:n, each = 5),
+  days = as.vector(t(cbind(
+    rep(0, n),         # Day 0 for lft 1
+    hep_c_lft$date2,   # Day for lft 2
+    hep_c_lft$date3,    # Day for lft 3
+    hep_c_lft$date4,
+    hep_c_lft$date5
+  ))),
+  fib4 = as.vector(t(cbind(
+    hep_c_lft$`FIB-4 Score 1`,
+    hep_c_lft$`FIB-4 Score 2`,
+    hep_c_lft$`FIB-4 Score 3`,
+    hep_c_lft$`FIB-4 Score 4`,
+    hep_c_lft$`FIB-4 Score 5`
+  ))),
+  age_group = rep(hep_c_lft$age_group, each = 5)
+)
+
+
+#clean the FIB-4 Score column, clean white space, ensure age_group is factor
+plot_data$fib4 <- trimws(plot_data$fib4)
+plot_data$fib4 <- gsub("[\u00A0]", "", plot_data$fib4)
+plot_data$fib4 <- gsub(",", "", plot_data$fib4)
+plot_data$fib4 <- as.numeric(plot_data$fib4)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = fib4, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(aes(group = age_group, color = factor(age_group)), 
+              method = "gam", se = FALSE, size = 1.2) +
+  scale_y_log10(labels = label_number()) +
+  scale_x_log10(labels = label_number()) +
+  labs(
+    x = "Log Scale of Time from Initial Encounter (Days)",
+    y = "FIB-4 Score Log Scale",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+plot_data_clean <- subset(plot_data, !is.na(fib4) & fib4 > 0)
+gam_model1 <- gam(log10(fib4) ~ s(days) + age_group, data = plot_data_clean)
+
+gam_model2 <- gam(log10(fib4) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data_clean)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$fib4, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("figure_outputs/hclft_fib4_spaghetti.png", plot = plot_with_text, dpi = 300)
+
+
+########################################## APRI Score ##########################################
+
+#making data frame
+n <- nrow(hep_c_lft)
+plot_data <- data.frame(
+  id = rep(1:n, each = 5),
+  days = as.vector(t(cbind(
+    rep(0, n),         # Day 0 for lft 1
+    hep_c_lft$date2,   # Day for lft 2
+    hep_c_lft$date3,    # Day for lft 3
+    hep_c_lft$date4,
+    hep_c_lft$date5
+  ))),
+  apri = as.vector(t(cbind(
+    hep_c_lft$`APRI Score 1`,
+    hep_c_lft$`APRI Score 2`,
+    hep_c_lft$`APRI Score 3`,
+    hep_c_lft$`APRI Score 4`,
+    hep_c_lft$`APRI Score 5`
+  ))),
+  age_group = rep(hep_c_lft$age_group, each = 5)
+)
+
+
+#clean the APRI column, clean white space, ensure age_group is factor
+plot_data$apri <- trimws(plot_data$apri)
+plot_data$apri <- gsub("[\u00A0]", "", plot_data$apri)
+plot_data$apri <- gsub(",", "", plot_data$apri)
+plot_data$apri <- as.numeric(plot_data$apri)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = apri, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(aes(group = age_group, color = factor(age_group)), 
+              method = "gam", se = FALSE, size = 1.2) +
+  scale_y_log10(labels = label_number()) +
+  scale_x_log10(labels = label_number()) +
+  labs(
+    x = "Log Scale of Time from Initial Encounter (Days)",
+    y = "APRI Score Log Scale",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+plot_data_clean <- subset(plot_data, !is.na(apri) & apri > 0)
+gam_model1 <- gam(log10(apri) ~ s(days) + age_group, data = plot_data_clean)
+
+gam_model2 <- gam(log10(apri) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data_clean)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$apri, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("figure_outputs/hclft_apri_spaghetti.png", plot = plot_with_text, dpi = 300)
+
+
+
+
+########################################## AST ##########################################
+
+#making data frame
+n <- nrow(hep_c_lft)
+plot_data <- data.frame(
+  id = rep(1:n, each = 5),
+  days = as.vector(t(cbind(
+    rep(0, n),         # Day 0 for lft 1
+    hep_c_lft$date2,   # Day for lft 2
+    hep_c_lft$date3,    # Day for lft 3
+    hep_c_lft$date4,
+    hep_c_lft$date5
+  ))),
+  AST = as.vector(t(cbind(
+    hep_c_lft$`AST 1`,
+    hep_c_lft$`AST 2`,
+    hep_c_lft$`AST 3`,
+    hep_c_lft$`AST 4`,
+    hep_c_lft$`AST 5`
+  ))),
+  age_group = rep(hep_c_lft$age_group, each = 5)
+)
+
+
+#clean the AST column, clean white space, ensure age_group is factor
+plot_data$AST <- trimws(plot_data$AST)
+plot_data$AST <- gsub("[\u00A0]", "", plot_data$AST)
+plot_data$AST <- gsub(",", "", plot_data$AST)
+plot_data$AST <- as.numeric(plot_data$AST)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = AST, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(aes(group = age_group, color = factor(age_group)), 
+              method = "gam", se = FALSE, size = 1.2) +
+  scale_y_log10(labels = label_number()) +
+  labs(
+    x = "Time from Initial Encounter (Days)",
+    y = "AST Log Scale (IU/L)",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+plot_data_clean <- subset(plot_data, !is.na(AST) & AST > 0)
+gam_model1 <- gam(log10(AST) ~ s(days) + age_group, data = plot_data_clean)
+
+gam_model2 <- gam(log10(AST) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data_clean)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$AST, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("figure_outputs/hclft_ast_spaghetti.png", plot = plot_with_text, dpi = 300)
+
+
+
+########################################## ALT ##########################################
+
+
+#making data frame
+n <- nrow(hep_c_lft)
+plot_data <- data.frame(
+  id = rep(1:n, each = 5),
+  days = as.vector(t(cbind(
+    rep(0, n),         # Day 0 for lft 1
+    hep_c_lft$date2,   # Day for lft 2
+    hep_c_lft$date3,    # Day for lft 3
+    hep_c_lft$date4,
+    hep_c_lft$date5
+  ))),
+  ALT = as.vector(t(cbind(
+    hep_c_lft$`ALT 1`,
+    hep_c_lft$`ALT 2`,
+    hep_c_lft$`ALT 3`,
+    hep_c_lft$`ALT 4`,
+    hep_c_lft$`ALT 5`
+  ))),
+  age_group = rep(hep_c_lft$age_group, each = 5)
+)
+
+
+#clean the ALT column, clean white space, ensure age_group is factor
+plot_data$ALT <- trimws(plot_data$ALT)
+plot_data$ALT <- gsub("[\u00A0]", "", plot_data$ALT)
+plot_data$ALT <- gsub(",", "", plot_data$ALT)
+plot_data$ALT <- as.numeric(plot_data$ALT)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = ALT, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(aes(group = age_group, color = factor(age_group)), 
+              method = "gam", se = FALSE, size = 1.2) +
+  scale_y_log10(labels = label_number()) +
+  scale_x_log10(labels = function(x) format(x, scientific = FALSE)) +
+  labs(
+    x = "Log Scale of Time from Initial Encounter (Days)",
+    y = "ALT Log Scale (IU/L)",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+plot_data_clean <- subset(plot_data, !is.na(ALT) & ALT > 0)
+gam_model1 <- gam(log10(ALT) ~ s(days) + age_group, data = plot_data_clean)
+
+gam_model2 <- gam(log10(ALT) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data_clean)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$ALT, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("figure_outputs/hclft_alt_spaghetti.png", plot = plot_with_text, dpi = 300)
+
+
+
+########################################## Bilirubin ##########################################
+
+#making data frame
+n <- nrow(hep_c_lft)
+plot_data <- data.frame(
+  id = rep(1:n, each = 5),
+  days = as.vector(t(cbind(
+    rep(0, n),         # Day 0 for lft 1
+    hep_c_lft$date2,   # Day for lft 2
+    hep_c_lft$date3,    # Day for lft 3
+    hep_c_lft$date4,
+    hep_c_lft$date5
+  ))),
+  tbil = as.vector(t(cbind(
+    hep_c_lft$`Total Bilirubin 1`,
+    hep_c_lft$`Total Bilirubin 2`,
+    hep_c_lft$`Total Bilirubin 3`,
+    hep_c_lft$`Total Bilirubin 4`,
+    hep_c_lft$`Total Bilirubin 5`
+  ))),
+  age_group = rep(hep_c_lft$age_group, each = 5)
+)
+
+
+#clean the tbil column, clean white space, ensure age_group is factor
+plot_data$tbil <- trimws(plot_data$tbil)
+plot_data$tbil <- gsub("[\u00A0]", "", plot_data$tbil)
+plot_data$tbil <- gsub(",", "", plot_data$tbil)
+plot_data$tbil <- as.numeric(plot_data$tbil)
+
+#create binary coding for age_group for later
+plot_data$age_group <- factor(plot_data$age_group)
+plot_data$age_30_50 <- as.numeric(plot_data$age_group == "30–50")
+plot_data$age_70_90 <- as.numeric(plot_data$age_group == "70–90")
+
+#create plot
+p <- ggplot(plot_data, aes(x = days, y = tbil, group = id, color = factor(age_group))) +
+  geom_line(na.rm = TRUE, alpha = 0.5) +
+  geom_point(na.rm = TRUE) +
+  geom_smooth(aes(group = age_group, color = factor(age_group)), 
+              method = "gam", se = FALSE, size = 1.2) +
+  scale_y_log10(labels = label_number()) +
+  scale_x_log10(labels = function(x) format(x, scientific = FALSE)) + 
+  labs(
+    x = "Log Scale of Time from Initial Encounter (Days)",
+    y = "Total Bilirubin Log Scale (mg/dL)",
+    color = "Age Group"
+  ) +
+  theme_minimal(base_size = 14) +  # increase base font size
+  theme(
+    panel.background = element_rect(fill = "white", color = NA),  # white background
+    plot.background = element_rect(fill = "white", color = NA),
+    panel.grid.major = element_blank(),      # no gridlines
+    panel.grid.minor = element_blank(),      # no gridlines
+    axis.line = element_line(color = "black"),
+    axis.title = element_text(size = 16),    # axes title font size
+    axis.text = element_text(size = 14),     # axes text font size
+    legend.title = element_text(size = 16),  # legend title font size
+    legend.text = element_text(size = 14)    # legend text font size
+  )
+
+#p-value
+# Model A: no interaction (one smooth for all)
+plot_data_clean <- subset(plot_data, !is.na(tbil) & tbil > 0)
+gam_model1 <- gam(log10(tbil) ~ s(days) + age_group, data = plot_data_clean)
+
+gam_model2 <- gam(log10(tbil) ~ 
+                    s(days, by = age_30_50) + 
+                    s(days, by = age_70_90) + 
+                    age_group,
+                  data = plot_data_clean)
+
+# Compare models with ANOVA
+anova_res <- anova(gam_model1, gam_model2, test = "Chisq")
+
+p_val <- anova_res$`Pr(>Chi)`[2]
+p_val_label <- ifelse(p_val < 0.001, "p < 0.001", paste0("p = ", signif(p_val, 3)))
+annot_df <- data.frame(
+  x = max(plot_data$days, na.rm = TRUE) * 0.8,
+  y = 10^(log10(max(plot_data$tbil, na.rm = TRUE)) - 0.3),
+  label = p_val_label
+)
+
+pval_grob <- grid::textGrob(
+  p_val_label,
+  x = 0.8, y = 5,           # position inside grob (0=left, 1=right for x; 0=bottom,1=top for y)
+  just = "left",            # justification of text inside grob
+  gp = grid::gpar(fontsize = 14)
+)
+
+# Combine plot and text grob vertically
+plot_with_text <- plot_grid(
+  p,                        # your ggplot object
+  ggdraw() + draw_grob(pval_grob),
+  ncol = 1,
+  rel_heights = c(1, 0.05)  # relative heights: plot is tall, text is short
+)
+
+print(plot_with_text)
+
+ggsave("figure_outputs/hclft_tbil_spaghetti.png", plot = plot_with_text, dpi = 300)
 
 ```

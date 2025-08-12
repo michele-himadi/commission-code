@@ -30,9 +30,6 @@ library(grid)
 # ***************         Extract and Import Data             **************** #                  
 # **************************************************************************** #
 
-
-# hep_c file had issues with BMP test date, pt 107 had "2002-12-05", changed to 2022. pt 120's BMP 5 was also taken on an earlier date than their BMP 2, so it was appropriately adjusted.
-
 hep_b <- readxl::read_excel(
   file.path(getwd(), "datasets", "Hepatitis B Cases - NCH Deidentified.xlsx")
 )
@@ -290,12 +287,12 @@ ggsave("figure_outputs/hbbmp_NA_spaghetti.png", plot = plot_with_text, dpi = 300
 
 
 #BMP formatting
-hep_c_bmp <- hep_c_clean[, c(1,2,13:15, 24:26, 35:37, 46:48, 57:59)]
-hep_c_bmp$`Date of BMP 1` <- as.Date(hep_c_bmp$`Date of BMP 1`, format = "%m/%d/%Y")
-hep_c_bmp$`Date of BMP 2` <- as.Date(hep_c_bmp$`Date of BMP 2`, format = "%m/%d/%Y")
-hep_c_bmp$`Date of BMP 3` <- as.Date(hep_c_bmp$`Date of BMP 3`, format = "%m/%d/%Y")
-hep_c_bmp$`Date of BMP 4` <- as.Date(hep_c_bmp$`Date of BMP 4`, format = "%m/%d/%Y")
-hep_c_bmp$`Date of BMP 5` <- as.Date(hep_c_bmp$`Date of BMP 5`, format = "%m/%d/%Y")
+hep_c_bmp <- hep_c_clean[, c(1,2,15:17, 28:30, 41:43, 54:56, 67:69)]
+hep_c_bmp$`Date of BMP 1` <- as.Date(hep_c_bmp$`Date of BMP 1`, format = "%Y-%m-%d")
+hep_c_bmp$`Date of BMP 2` <- as.Date(hep_c_bmp$`Date of BMP 2`, format = "%Y-%m-%d")
+hep_c_bmp$`Date of BMP 3` <- as.Date(hep_c_bmp$`Date of BMP 3`, format = "%Y-%m-%d")
+hep_c_bmp$`Date of BMP 4` <- as.Date(hep_c_bmp$`Date of BMP 4`, format = "%Y-%m-%d")
+hep_c_bmp$`Date of BMP 5` <- as.Date(hep_c_bmp$`Date of BMP 5`, format = "%Y-%m-%d")
 hep_c_bmp$date2 <- as.numeric(hep_c_bmp[[8]] - hep_c_bmp[[5]])
 hep_c_bmp$date3 <- as.numeric(hep_c_bmp[[11]] - hep_c_bmp[[5]])
 hep_c_bmp$date4 <- as.numeric(hep_c_bmp[[14]] - hep_c_bmp[[5]])
@@ -318,9 +315,9 @@ n <- nrow(hep_c_bmp)
 plot_data <- data.frame(
   id = rep(1:n, each = 5),
   days = as.vector(t(cbind(
-    rep(0, n),         # Day 0 for titer 1
-    hep_c_bmp$date2,   # Day for titer 2
-    hep_c_bmp$date3,    # Day for titer 3
+    rep(0, n),         # Day 0 for bmp 1
+    hep_c_bmp$date2,   # Day for bmp 2
+    hep_c_bmp$date3,  
     hep_c_bmp$date4,
     hep_c_bmp$date5
   ))),
@@ -352,9 +349,10 @@ p <- ggplot(plot_data, aes(x = days, y = creatinine, group = id, color = factor(
   geom_point(na.rm = TRUE) +
   geom_smooth(aes(group = age_group, color = factor(age_group)), 
               method = "gam", se = FALSE, size = 1.2) +
-  scale_y_continuous(labels = label_number()) +
+  scale_y_continuous(labels = label_number()) + 
+  scale_x_log10(labels = function(x) format(x, scientific = FALSE)) +
   labs(
-    x = "Time from Initial Encounter (Days)",
+    x = "Log Scale of Time from Initial Encounter (Days)",
     y = "Creatinine (mg/dL)",
     color = "Age Group"
   ) +
@@ -410,7 +408,7 @@ plot_with_text <- plot_grid(
 
 print(plot_with_text)
 
-ggsave("figure_outputs/hbbmp_creat_spaghetti.png", plot = plot_with_text, dpi = 300)
+ggsave("figure_outputs/hcbmp_creat_spaghetti.png", plot = plot_with_text, dpi = 300)
 
 ########################################## Sodium ##########################################
 
@@ -419,9 +417,9 @@ n <- nrow(hep_c_bmp)
 plot_data <- data.frame(
   id = rep(1:n, each = 5),
   days = as.vector(t(cbind(
-    rep(0, n),         # Day 0 for titer 1
-    hep_c_bmp$date2,   # Day for titer 2
-    hep_c_bmp$date3,    # Day for titer 3
+    rep(0, n),         # Day 0 for bmp 1
+    hep_c_bmp$date2,   # Day for bmp 2
+    hep_c_bmp$date3,
     hep_c_bmp$date4,
     hep_c_bmp$date5
   ))),
@@ -454,8 +452,9 @@ p <- ggplot(plot_data, aes(x = days, y = sodium, group = id, color = factor(age_
   geom_smooth(aes(group = age_group, color = factor(age_group)), 
               method = "gam", se = FALSE, size = 1.2) +
   scale_y_continuous(labels = label_number()) +
+  scale_x_log10(labels = function(x) format(x, scientific = FALSE)) +
   labs(
-    x = "Time from Initial Encounter (Days)",
+    x = "Log Scale of Time from Initial Encounter (Days)",
     y = "Sodium (mg/dL)",
     color = "Age Group"
   ) +
@@ -511,6 +510,6 @@ plot_with_text <- plot_grid(
 
 print(plot_with_text)
 
-ggsave("figure_outputs/hbbmp_NA_spaghetti.png", plot = plot_with_text, dpi = 300)
+ggsave("figure_outputs/hcbmp_NA_spaghetti.png", plot = plot_with_text, dpi = 300)
 
 ```
