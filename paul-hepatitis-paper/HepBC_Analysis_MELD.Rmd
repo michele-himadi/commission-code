@@ -224,7 +224,7 @@ p <- ggplot(plot_data, aes(x = days, y = meldna, group = id, color = factor(age_
   scale_x_log10(labels = label_number()) +
   labs(
     x = "Log Scale of Time from Initial Encounter (Days)",
-    y = "MELD NA",
+    y = "MELD-NA Score",
     color = "Age Group"
   ) +
   theme_minimal(base_size = 14) +  # increase base font size
@@ -465,7 +465,7 @@ p <- ggplot(plot_data, aes(x = days, y = meldna, group = id, color = factor(age_
   scale_x_log10(labels = label_number()) +
   labs(
     x = "Log Scale of Time from Initial Encounter (Days)",
-    y = "MELD NA",
+    y = "MELD-NA Score",
     color = "Age Group"
   ) +
   theme_minimal(base_size = 14) +  # increase base font size

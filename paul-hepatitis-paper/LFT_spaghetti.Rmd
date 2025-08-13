@@ -870,8 +870,9 @@ p <- ggplot(plot_data, aes(x = days, y = AST, group = id, color = factor(age_gro
   geom_smooth(aes(group = age_group, color = factor(age_group)), 
               method = "gam", se = FALSE, size = 1.2) +
   scale_y_log10(labels = label_number()) +
+  scale_x_log10(labels = label_number()) +
   labs(
-    x = "Time from Initial Encounter (Days)",
+    x = "Log Scale of Time from Initial Encounter (Days)",
     y = "AST Log Scale (IU/L)",
     color = "Age Group"
   ) +

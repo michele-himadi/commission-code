@@ -308,6 +308,10 @@ hep_c_bmp <- hep_c_bmp %>%
     )
   )
 
+#remove subject 38's creatinine 3, as it a heavy outlier at 20
+hep_c_bmp[38,9] <- NA
+
+
 ########################################## Creatinine ##########################################
 
 #making data frame
